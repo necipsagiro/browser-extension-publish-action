@@ -35,19 +35,19 @@ inputs:
     default: 'dist/firefox-extension.zip'
   chrome-client-id:
     description: 'Chrome Web Store Client ID'
-    required: true
+    required: false
   chrome-client-secret:
     description: 'Chrome Web Store Client Secret'
-    required: true
+    required: false
   chrome-refresh-token:
     description: 'Chrome Web Store Refresh Token'
-    required: true
+    required: false
   chrome-publisher-id:
     description: 'Chrome Web Store Publisher ID'
-    required: true
+    required: false
   chrome-extension-id:
     description: 'Chrome Web Store Extension ID'
-    required: true
+    required: false
   firefox-guid:
     description: 'Firefox Add-on GUID (from manifest.json browser_specific_settings.gecko.id)'
     required: false
@@ -81,6 +81,18 @@ runs:
         set -euo pipefail
         VERSION=$(node -p "require('./${{ inputs.manifest-path }}').version")
         echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+        # Check if at least one set of credentials is provided
+        HAS_CHROME=$([ -n "${{ inputs.chrome-client-id }}" ] && [ -n "${{ inputs.chrome-client-secret }}" ] && [ -n "${{ inputs.chrome-refresh-token }}" ] && [ -n "${{ inputs.chrome-publisher-id }}" ] && [ -n "${{ inputs.chrome-extension-id }}" ] && echo "true" || echo "false")
+        HAS_FIREFOX=$([ -n "${{ inputs.firefox-jwt-issuer }}" ] && [ -n "${{ inputs.firefox-jwt-secret }}" ] && echo "true" || echo "false")
+
+        if [ "$HAS_CHROME" = "false" ] && [ "$HAS_FIREFOX" = "false" ]; then
+          echo "Error: At least one set of credentials (Chrome or Firefox) must be provided"
+          exit 1
+        fi
+
+        echo "has_chrome=${HAS_CHROME}" >> $GITHUB_OUTPUT
+        echo "has_firefox=${HAS_FIREFOX}" >> $GITHUB_OUTPUT
 
         # Read Firefox GUID from manifest if not provided
         if [ -z "${{ inputs.firefox-guid }}" ]; then
@@ -126,31 +138,31 @@ runs:
       run: pnpm install --frozen-lockfile
 
     - name: Build Chrome extension
-      if: steps.version_check.outputs.publish == 'true'
+      if: steps.version_check.outputs.publish == 'true' && steps.version_check.outputs.has_chrome == 'true'
       shell: bash
       run: ${{ inputs.build-chrome-command }}
 
     - name: Build Firefox extension
-      if: steps.version_check.outputs.publish == 'true'
+      if: steps.version_check.outputs.publish == 'true' && steps.version_check.outputs.has_firefox == 'true'
       shell: bash
       run: ${{ inputs.build-firefox-command }}
 
     - name: Upload Chrome build artifact
-      if: steps.version_check.outputs.publish == 'true'
+      if: steps.version_check.outputs.publish == 'true' && steps.version_check.outputs.has_chrome == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: chrome-extension
         path: ${{ inputs.chrome-zip-path }}
 
     - name: Upload Firefox build artifact
-      if: steps.version_check.outputs.publish == 'true'
+      if: steps.version_check.outputs.publish == 'true' && steps.version_check.outputs.has_firefox == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: firefox-extension
         path: ${{ inputs.firefox-zip-path }}
 
     - name: Publish to Chrome Web Store
-      if: steps.version_check.outputs.publish == 'true'
+      if: steps.version_check.outputs.publish == 'true' && steps.version_check.outputs.has_chrome == 'true'
       shell: bash
       env:
         CLIENT_ID: ${{ inputs.chrome-client-id }}
@@ -253,9 +265,23 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.github-token }}
       run: |
+        set -euo pipefail
         VERSION=${{ steps.version_check.outputs.version }}
-        gh release create "v${VERSION}" \
-          --title "v${VERSION}" \
-          --generate-notes \
-          ${{ inputs.chrome-zip-path }} \
-          ${{ inputs.firefox-zip-path }}
+        RELEASE_FILES=""
+
+        if [ "${{ steps.version_check.outputs.has_chrome }}" = "true" ] && [ -f "${{ inputs.chrome-zip-path }}" ]; then
+          RELEASE_FILES="$RELEASE_FILES ${{ inputs.chrome-zip-path }}"
+        fi
+
+        if [ "${{ steps.version_check.outputs.has_firefox }}" = "true" ] && [ -f "${{ inputs.firefox-zip-path }}" ]; then
+          RELEASE_FILES="$RELEASE_FILES ${{ inputs.firefox-zip-path }}"
+        fi
+
+        if [ -n "$RELEASE_FILES" ]; then
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --generate-notes \
+            $RELEASE_FILES
+        else
+          echo "No extension files to attach to release"
+        fi
