@@ -20,7 +20,7 @@ jobs:
       id-token: write
 
     steps:
-      - uses: YOUR_USERNAME/extension-publish-action@v1
+      - uses: necipsagiro/browser-extension-publish-action@v1
         with:
           chrome-client-id: ${{ secrets.CHROME_CLIENT_ID }}
           chrome-client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
