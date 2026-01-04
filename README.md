@@ -76,3 +76,10 @@ At least one of Chrome or Firefox credentials must be provided.
 - Build scripts: build:chrome and/or build:firefox (depending on which stores you're publishing to)
 - At least one set of credentials: Chrome Web Store API credentials OR Firefox Add-ons API credentials
 
+## Privacy Policy
+
+This action does not collect, store, or process any Personal Data. All credentials (Chrome Web Store API credentials, Firefox Add-ons API credentials) are provided by the user via GitHub Secrets and are used solely for the purpose of publishing extensions to their respective stores. The action does not transmit any data to third parties except for the necessary API calls to Chrome Web Store and Firefox Add-ons for publishing purposes. No user data, analytics, or tracking information is collected or stored by this action.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
